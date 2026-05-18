@@ -124,9 +124,33 @@ async def cmd_admin(message: types.Message):
     )
 
 
+@dp.message(Command("now"))
+async def cmd_now(message: types.Message):
+    """Быстрый прогноз текущей погоды"""
+    # Можно добавить логику для определения города пользователя
+    # или использовать город по умолчанию
+    default_city = get_all_cities()[0] if get_all_cities() else None
+
+    if not default_city:
+        await message.answer("❌ Нет доступных городов")
+        return
+
+    city_id, city_name, lat, lon = default_city
+
+    loading_msg = await message.answer(f"⏳ Загрузка текущей погоды для {city_name}...")
+
+    weather_data = weather_parser.get_current_weather_only(lat, lon)
+
+    if weather_data:
+        forecast_text = weather_parser.format_current_weather(weather_data, city_name)
+        await loading_msg.edit_text(forecast_text, parse_mode=ParseMode.MARKDOWN)
+    else:
+        await loading_msg.edit_text(f"❌ Не удалось получить данные для {city_name}")
+
+
 @dp.callback_query(lambda c: c.data.startswith("weather_"))
 async def process_weather_callback(callback_query: CallbackQuery):
-    # Обработчик выбора города
+    """Обработчик выбора города"""
     await callback_query.answer()
 
     city_id = int(callback_query.data.split("_")[1])
@@ -144,14 +168,21 @@ async def process_weather_callback(callback_query: CallbackQuery):
 
     city_name, lat, lon = city
 
+    # Отправляем сообщение о загрузке
     loading_msg = await callback_query.message.edit_text(
         f"⏳ Загрузка прогноза для города {city_name}..."
     )
 
+    # Получаем погоду
     weather_data = weather_parser.get_weather_forecast(lat, lon)
 
     if weather_data:
-        forecast_text = weather_parser.format_forecast_message(weather_data, city_name)
+        # Полный прогноз с текущей погодой
+        forecast_text = weather_parser.format_forecast_message(weather_data, city_name, include_current=True)
+
+        # Альтернативно, можно использовать компактный формат:
+        # forecast_text = weather_parser.format_compact_forecast(weather_data, city_name)
+
         await loading_msg.edit_text(
             forecast_text,
             parse_mode=ParseMode.MARKDOWN,
